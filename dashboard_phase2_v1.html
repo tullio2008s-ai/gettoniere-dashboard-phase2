@@ -162,7 +162,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
 </head>
 <body>
 
-<div class="test-banner" id="prod-banner" style="display:none">🔶 GETTONIERE-SHOP V6 — collegato a Firebase (nodo datiV6, separato da v2) &nbsp; <span>Contratto Step 2 dal 01/09/2026</span> <span>rev.6 · 12/10/2026</span></div>
+<div class="test-banner" id="prod-banner" style="display:none">🔶 GETTONIERE-SHOP V6 — collegato a Firebase (nodo datiV6, separato da v2) &nbsp; <span>Contratto Step 2 dal 01/09/2026</span> <span>rev.7 · 31/10/2026</span></div>
 
 <!-- ══════════ LOGIN ══════════ -->
 <div id="login-screen">
@@ -518,7 +518,7 @@ function mostraStatoFirebase(ok, msg){
   if(ok){
     banner.style.display = 'block';
     banner.style.background = 'repeating-linear-gradient(45deg,#4ade80,#4ade80 12px,#0d0f14 12px,#0d0f14 24px)';
-    banner.innerHTML = '🟢 GETTONIERE-SHOP V6 — collegato a Firebase (nodo datiV6) <span>Contratto Step 2 dal 01/09/2026</span> <span>rev.6 · 12/10/2026</span>';
+    banner.innerHTML = '🟢 GETTONIERE-SHOP V6 — collegato a Firebase (nodo datiV6) <span>Contratto Step 2 dal 01/09/2026</span> <span>rev.7 · 31/10/2026</span>';
   } else {
     banner.style.display = 'block';
     banner.style.background = 'repeating-linear-gradient(45deg,#f87171,#f87171 12px,#0d0f14 12px,#0d0f14 24px)';
@@ -565,6 +565,54 @@ function normalizzaStato(){
   S.v6_chiusure = S.v6_chiusure || {};
   S.v6_abbonamenti = S.v6_abbonamenti || [];
   S.v6_lavamici = S.v6_lavamici || [];
+  applicaConciliazioneRev7();
+}
+// rev.7 (31/10/2026) — Coefficiente materiali 40,46% da ottobre 2026 + "Conciliazione mesi precedenti".
+// Il passato fino a settembre resta congelato (chiusure e storico non si toccano). La funzione è idempotente:
+// aggiunge una nuova versione del parametro cmPct (decorrenza 01/10/2026) e il blocco conciliazione, poi viene
+// salvata alla prima apertura di TS SRL. Da novembre 2026 il magazzino SRL riparte da zero.
+function applicaConciliazioneRev7(){
+  const mag = S.v6_magazzino;
+  if(mag.conciliazione && mag.conciliazione.versione) return;
+  const ora = new Date().toISOString();
+  const cm = S.v6_params.cmPct;
+  // Base esplicita per i mesi precedenti a ottobre: prima veniva usata per fallback la voce 39,68 (storico invariato).
+  if(!cm.some(v=>v.decorrenza==='2000-01-01')) cm.push({ valore: 39.68, decorrenza: '2000-01-01', autore: 'migrazione', timestamp: '2026-08-04T18:16:36.274965', note: 'Valore applicato ai mesi precedenti a ottobre 2026 (storico invariato, rev.7)' });
+  if(!cm.some(v=>v.decorrenza==='2026-10-01' && v.valore===40.46)){
+    cm.push({ valore: 40.46, decorrenza: '2026-10-01', autore: 'SRL', timestamp: ora,
+      note: 'Coefficiente materiali anno 01/01–31/10/2026: consumi 170.150,58 ÷ ricavi 420.494,59. Vale da ottobre 2026; i mesi fino a settembre restano congelati.' });
+  }
+  mag.conciliazione = {
+    versione: 1, meseChiusura: '2026-10', dataRif: '2026-10-31', inFatturaMensile: true, salvata: false,
+    saldoTarget: 22465.24,
+    rettifiche: [
+      { id:'C03', mese:'2026-03', quotaStorico:6384.26, recupero:8728.44, fattura:'2026-FE-00116' },
+      { id:'C04', mese:'2026-04', quotaStorico:7077.79, recupero:5263.42, fattura:'2026-FE-00117' },
+      { id:'C05', mese:'2026-05', quotaStorico:5820.79, recupero:3464.29, fattura:'2026-FE-00120' },
+      { id:'C06', mese:'2026-06', quotaStorico:8643.49, recupero:5491.89, fattura:'2026-FE-00124' },
+      { id:'C07', mese:'2026-07', quotaStorico:2206.74, recupero:0, fattura:'2026-FE-00126' },
+      { id:'C08', mese:'2026-08', quotaStorico:941.06, recupero:941.06, fattura:'2026-FE-00127' }
+    ],
+    partite: [
+      { id:'P1', tipo:'da_incassare', importo:941.06, desc:'Materiali di montaggio inclusi in FE-00127 (29/08/2026), fatturati e non ancora pagati' }
+    ],
+    notaCredito: {
+      descrizione:'Nota di credito per rettifica compenso MOL marzo–settembre 2026: coefficiente 40,46% in luogo di 45% (marzo) e 35% (aprile–settembre). Ottobre è calcolato direttamente al 40,46%.',
+      righe: [
+        { mese:'2026-03', fattura:'2026-FE-00116', F:25377.26, cf:45, importo:-345.64 },
+        { mese:'2026-04', fattura:'2026-FE-00117', F:38768.55, cf:35, importo:635.03 },
+        { mese:'2026-05', fattura:'2026-FE-00120', F:50352.60, cf:35, importo:824.78 },
+        { mese:'2026-06', fattura:'2026-FE-00124', F:67341.92, cf:35, importo:1103.06 },
+        { mese:'2026-07', fattura:'2026-FE-00126', F:47152.44, cf:35, importo:772.36 },
+        { mese:'2026-08', fattura:'2026-FE-00127', F:23671.02, cf:35, importo:387.73 },
+        { mese:'2026-09', fattura:'2026-FE-00129', F:38887.92, cf:35, importo:636.98 }
+      ],
+      imponibile: 4014.30, iva: 883.15, totale: 4897.45
+    },
+    coefficiente: { valore: 40.46, consumi: 170150.58, ricavi: 420494.59 }
+  };
+  S.v6_audit_log = S.v6_audit_log || [];
+  S.v6_audit_log.unshift({ ts: ora, autore: 'SRL', azione: 'rev.7: coefficiente CM 40,46% da ottobre 2026 e conciliazione mesi precedenti (magazzino SRL a zero dal 31/10/2026)', entita: 'v6_params/v6_magazzino', prima: { cmPct: 39.68 }, dopo: { cmPct: 40.46 } });
 }
 async function loadState(){
   try {
@@ -946,8 +994,25 @@ function calcolaMagazzinoLedger(finoY, finoM){
     const quotaEffettiva = approvata ? Math.max(0, quotaProposta) : 0;
     const acquistiSRL = getAcquistiSRLMaterialeMese(y,m);
     const saldoInizio = saldo;
-    saldo = Math.max(0, round2(saldo - quotaEffettiva + acquistiSRL));
-    righe.push({ mese: chiave, y, m, saldoInizio, quotaAutomatica, rettifica, quotaProposta, quotaEffettiva, approvata, acquistiSRL, acquistiSRLS, automatico, F: fRes.F, saldoFine: saldo, q, cmPct });
+    // Conciliazione mesi precedenti (rev.7): nel mese di chiusura si applicano le rettifiche storiche e il saldo
+    // residuo viene liquidato (stock a zero a fine mese). Dai mesi successivi la quota non può superare lo stock.
+    const conc = mag.conciliazione;
+    let rettConc = 0, arrotConc = 0, chiusuraConc = false, quotaEff = quotaEffettiva, quotaFatt = quotaEffettiva;
+    if(conc && conc.versione){
+      if(chiave === conc.meseChiusura){
+        const sommaRett = round2((conc.rettifiche||[]).reduce((a,r)=>a+(parseFloat(r.quotaStorico)||0)-(parseFloat(r.recupero)||0),0));
+        arrotConc = conc.saldoTarget!=null && Math.abs(round2(conc.saldoTarget - (saldoInizio + sommaRett)))<=0.05 ? round2(conc.saldoTarget - (saldoInizio + sommaRett)) : 0;
+        rettConc = round2(sommaRett + arrotConc);
+        quotaEff = Math.max(0, round2(saldoInizio + rettConc + acquistiSRL));
+        chiusuraConc = true;
+        quotaFatt = conc.inFatturaMensile === false ? Math.min(quotaEffettiva, quotaEff) : quotaEff;
+      } else if(chiave > conc.meseChiusura){
+        quotaEff = Math.min(quotaEffettiva, Math.max(0, round2(saldoInizio + acquistiSRL)));
+        quotaFatt = quotaEff;
+      }
+    }
+    saldo = Math.max(0, round2(saldoInizio + rettConc - quotaEff + acquistiSRL));
+    righe.push({ mese: chiave, y, m, saldoInizio, quotaAutomatica, rettifica, quotaProposta, quotaEffettiva: quotaEff, quotaFattura: quotaFatt, rettConc, arrotConc, chiusuraConc, approvata: approvata || chiusuraConc, acquistiSRL, acquistiSRLS, automatico, F: fRes.F, saldoFine: saldo, q, cmPct });
     m++; if(m>11){ m=0; y++; }
   }
   return { righe, valoreOriginario, recuperato310826 };
@@ -955,7 +1020,7 @@ function calcolaMagazzinoLedger(finoY, finoM){
 function calcolaMagazzino(y,m){
   const { righe, valoreOriginario, recuperato310826 } = calcolaMagazzinoLedger(y,m);
   const ultima = righe[righe.length-1] || { saldoInizio: Math.max(0,round2(valoreOriginario-recuperato310826)), quotaEffettiva:0, saldoFine: Math.max(0,round2(valoreOriginario-recuperato310826)), acquistiSRL:0, quotaAutomatica:0 };
-  return { saldoInizioMese: ultima.saldoInizio, quotaMese: ultima.quotaEffettiva, saldoFineMese: ultima.saldoFine,
+  return { saldoInizioMese: ultima.saldoInizio, quotaMese: ultima.quotaEffettiva, quotaFattura: ultima.quotaFattura ?? ultima.quotaEffettiva, rettConc: ultima.rettConc||0, saldoFineMese: ultima.saldoFine,
     acquistiSRLMese: ultima.acquistiSRL, quotaAutomatica: ultima.quotaAutomatica, recuperato310826, valoreOriginario };
 }
 
@@ -1012,7 +1077,7 @@ function calcolaMeseCompleto(y, m){
   const icGenSrlsSrl = icGenerico.filter(v=>v.dir==='srls-srl').reduce((a,v)=>a+(parseFloat(v.imp)||0),0);
 
   // Fattura TS SRL -> PS SRLS: royalty + quota MOL + contributo forfettario + quota magazzino + riaddebiti 8% + IC generico. Imponibile + IVA 22% aggiunta (servizi ordinari).
-  const imponibileTSaPS = round2(royalty + quote.quotaTS + contributoForfettario + magazzino.quotaMese + coaRes.totMag + icGenSrlSrls);
+  const imponibileTSaPS = round2(royalty + quote.quotaTS + contributoForfettario + (magazzino.quotaFattura ?? magazzino.quotaMese) + coaRes.totMag + icGenSrlSrls);
   const ivaTSaPS = round2(imponibileTSaPS * 0.22);
   const totaleFatturaTSaPS = round2(imponibileTSaPS + ivaTSaPS);
 
@@ -1065,6 +1130,7 @@ function showPage(name){
 
 function renderAll(){
   if(!ROLE) return;
+  { const cc = S.v6_magazzino && S.v6_magazzino.conciliazione; if(isAdmin() && cc && cc.versione && !cc.salvata){ cc.salvata = true; saveState(); } }
   document.getElementById('dash-month-label').textContent = monthLabel();
   renderDashboard();
   renderVendite();
@@ -1160,7 +1226,7 @@ function prSezioneCopertina(y, m){
     ['Royalty (3%)', c.royalty],
     ...(c.lavamici&&c.lavamici.FL>0 ? [['Quota MOL TS — gettoniere ('+c.quote.perc+'%)', c.quote.quotaTSOrd], ['Quota MOL TS — LAVAMICI ('+c.quote.percLav+'%)', c.quote.quotaTSLav]] : [['Quota MOL TS', c.quote.quotaTS]]),
     ['Contributo forfettario (Allegato B, somma approvata)', c.contributoForfettario],
-    ['Quota acquisto magazzino', c.magazzino.quotaMese],
+    ['Quota acquisto magazzino', (c.magazzino.quotaFattura ?? c.magazzino.quotaMese)],
     ['Riaddebiti Intercompany maggiorati 8% (in COA)', c.coaRes.totMag],
     ['Riaddebiti Intercompany generici SRL→SRLS', c.icGenSrlSrls],
   ];
@@ -1286,6 +1352,7 @@ function prSezioneMagazzino(y, m){
     <table><tr><th>Stock inizio mese</th><th>Quota dedotta (CM%×F)</th><th>Acquisti SRL (+maggiorazione)</th><th>Stock fine mese</th></tr>
       <tr><td>${euro(mag.saldoInizioMese)}</td><td>${euro(mag.quotaMese)}</td><td>${euro(mag.acquistiSRLMese)}</td><td>${euro(mag.saldoFineMese)}</td></tr>
     </table>
+    ${mag.rettConc ? `<div class="hint">Conciliazione mesi precedenti: rettifica storica ${euro(mag.rettConc)}; magazzino SRL azzerato a fine mese (saldo di chiusura ${euro(mag.quotaMese)}).</div>` : ''}
     <div class="hint">Magazzino iniziale convenzionale: ${euro(mag.valoreOriginario)} (Art.17.5, Allegato C) — quota automatica di riferimento: ${euro(mag.quotaAutomatica)}.</div>
   </div>`;
 }
@@ -1372,7 +1439,7 @@ function renderDashboard(){
           ${riga('Royalty (3%)', c.royalty)}
           ${c.lavamici&&c.lavamici.FL>0 ? riga('Quota MOL TS — gettoniere ('+c.quote.perc+'%)', c.quote.quotaTSOrd, {mini:'su MOL '+fmt(c.quote.molOrd)}) + riga('Quota MOL TS — LAVAMICI ('+c.quote.percLav+'%)', c.quote.quotaTSLav, {mini:'su MOL '+fmt(c.quote.molLav)}) : riga('Quota MOL TS ('+c.quote.perc+'%)', c.quote.quotaTS)}
           ${riga('Contributo forfettario', c.contributoForfettario)}
-          ${riga('Quota acquisto magazzino', c.magazzino.quotaMese)}
+          ${riga('Quota acquisto magazzino', (c.magazzino.quotaFattura ?? c.magazzino.quotaMese))}
           ${c.coaRes.totMag ? riga('Riaddebiti maggiorati 8%', c.coaRes.totMag) : ''}
           ${c.icGenSrlSrls ? riga('Riaddebiti generici SRL→SRLS', c.icGenSrlSrls) : ''}
           ${riga('Imponibile', c.imponibileTSaPS, {tot:true})}
@@ -1983,24 +2050,83 @@ function renderMagazzino(){
 
   <div class="card" style="margin-bottom:16px">
     <div class="param-group-title" style="margin-bottom:14px">📋 Storico mensile magazzino</div>
-    <table><tr><th>Mese</th><th>Stock inizio</th><th>Quota auto (CM%×F)</th><th>Rettifica</th><th>Quota dedotta</th><th>Acquisti SRL</th><th>Residuo fine mese</th><th>Stato</th></tr>
+    <table><tr><th>Mese</th><th>Stock inizio</th><th>Quota auto (CM%×F)</th><th>Rettifica</th><th>Concil.</th><th>Quota dedotta</th><th>Acquisti SRL</th><th>Residuo fine mese</th><th>Stato</th></tr>
     ${righe.map(r=>`<tr>
       <td class="txt">${MESI[r.m]} ${r.y}</td>
       <td>${euro(r.saldoInizio)}</td>
       <td>${euro(r.quotaAutomatica)}</td>
       <td>${r.rettifica ? euro(r.rettifica) : '—'}</td>
+      <td style="color:var(--accent3)">${r.rettConc ? euro(r.rettConc) : '—'}</td>
       <td style="font-weight:${r.approvata?700:400};${r.approvata?'':'color:var(--muted)'}">${euro(r.quotaEffettiva)}</td>
       <td style="color:var(--accent3)">${r.acquistiSRL?'+'+euro(r.acquistiSRL):'—'}</td>
       <td style="font-weight:700">${euro(r.saldoFine)}</td>
-      <td>${r.q ? `<span class="tag ${r.q.stato}">${r.q.stato.replace('_',' ')}</span>` : (r.automatico ? '<span class="tag approvato">automatica</span>' : '<span class="tag da_valorizzare">non registrata</span>')}</td>
+      <td>${r.q ? `<span class="tag ${r.q.stato}">${r.q.stato.replace('_',' ')}</span>` : (r.chiusuraConc ? '<span class="tag approvato">saldo di chiusura</span>' : r.automatico ? '<span class="tag approvato">automatica</span>' : '<span class="tag da_valorizzare">non registrata</span>')}</td>
     </tr>`).join('')}
-    <tr style="font-weight:700"><td class="txt">Totale</td><td></td><td></td><td></td><td>${euro(totCumulato)}</td><td style="color:var(--accent3)">+${euro(totAcquisti)}</td><td colspan="2"></td></tr>
+    <tr style="font-weight:700"><td class="txt">Totale</td><td></td><td></td><td></td><td></td><td>${euro(totCumulato)}</td><td style="color:var(--accent3)">+${euro(totAcquisti)}</td><td colspan="2"></td></tr>
     </table>
     <div class="hint">La quota conta nel saldo solo se registrata come "approvato" (dal modulo di rettifica sopra). Gli acquisti SRL materiale confluiscono sempre automaticamente, senza bisogno di approvazione separata (sono già tracciati e approvati in pagina Acquisti).</div>
   </div>`;
-  document.getElementById('magazzino-content').innerHTML = html;
+  document.getElementById('magazzino-content').innerHTML = html + htmlConciliazione();
   if(admin){ popolaSelectAnnoMese('mag-rett-anno','mag-rett-mese'); aggiornaRettificaPreview(); }
 }
+// ── CONCILIAZIONE MESI PRECEDENTI (rev.7) ──
+function toggleConcInFattura(v){
+  if(!requireAdmin('modificare la conciliazione')) { renderMagazzino(); return; }
+  const c = S.v6_magazzino.conciliazione; const prima = c.inFatturaMensile;
+  c.inFatturaMensile = !!v;
+  pushAudit('conciliazione: saldo magazzino '+(v?'incluso nella':'escluso dalla')+' fattura TS→PS di ottobre', 'v6_magazzino', prima, c.inFatturaMensile);
+  renderAll();
+}
+function htmlConciliazione(){
+  const c = S.v6_magazzino && S.v6_magazzino.conciliazione;
+  if(!c || !c.versione) return '';
+  const [cy, cm1] = c.meseChiusura.split('-').map(Number);
+  const { righe } = calcolaMagazzinoLedger(cy, cm1-1);
+  const rc = righe.find(r=>r.chiusuraConc), prec = righe.filter(r=>r.mese < c.meseChiusura).slice(-1)[0];
+  if(!rc) return '';
+  const admin = isAdmin();
+  const saldoPrec = prec ? prec.saldoFine : rc.saldoInizio;
+  const rett = (c.rettifiche||[]);
+  const saldoConc = round2(saldoPrec + rc.rettConc);
+  const nc = c.notaCredito || {};
+  const totDovuto = round2(rc.quotaEffettiva + (c.partite||[]).reduce((a,p)=>a+(parseFloat(p.importo)||0),0));
+  const netto = round2(totDovuto - (nc.imponibile||0));
+  const tr = (a,b,o)=>`<tr${o&&o.b?' style="font-weight:700"':''}><td class="txt">${a}</td><td style="text-align:right">${b}</td></tr>`;
+  return `<div class="card" style="margin-bottom:16px;border-left:4px solid var(--accent2)">
+    <div class="param-group-title" style="margin-bottom:6px">🔗 CONCILIAZIONE MESI PRECEDENTI</div>
+    <div class="hint" style="margin-bottom:12px">Lo storico fino a settembre 2026 resta congelato. Da ottobre si usa il coefficiente <b>${fmt(c.coefficiente.valore)}%</b> (consumi €${fmt(c.coefficiente.consumi)} ÷ ricavi €${fmt(c.coefficiente.ricavi)}, 01/01–31/10/2026). Questa sezione riporta lo storico al valore corretto e azzera il magazzino SRL al ${dmyStr(c.dataRif)}: dal 01/11/2026 si riparte da zero.</div>
+    <div class="param-group-title" style="margin:0 0 8px">Quote dello storico a confronto con il recupero fatturato</div>
+    <table><tr><th>Mese</th><th>Fattura</th><th>Quota nello storico</th><th>Recupero fatturato</th><th>Differenza</th></tr>
+      ${rett.map(r=>`<tr><td class="txt">${MESI[parseInt(r.mese.slice(5,7))-1]} ${r.mese.slice(0,4)}</td><td class="txt">${r.fattura}</td><td>${euro(r.quotaStorico)}</td><td>${euro(r.recupero)}</td><td>${euro(round2(r.quotaStorico-r.recupero))}</td></tr>`).join('')}
+      ${rc.arrotConc ? `<tr><td class="txt">Arrotondamenti</td><td></td><td></td><td></td><td>${euro(rc.arrotConc)}</td></tr>` : ''}
+      <tr style="font-weight:700"><td class="txt">Totale rettifica</td><td></td><td></td><td></td><td>${euro(rc.rettConc)}</td></tr>
+    </table>
+    <div class="hint" style="margin:6px 0 14px">Differenza positiva: nello storico era stata dedotta una quota maggiore di quella poi fatturata e pagata, quindi lo stock reale è più alto.</div>
+    <table>
+      ${tr('Magazzino SRL a fine '+MESI[prec? prec.m : cm1-2]+' '+(prec?prec.y:cy)+' (storico congelato)', euro(saldoPrec))}
+      ${tr('+ Rettifica mesi precedenti', euro(rc.rettConc))}
+      ${tr('= Magazzino conciliato prima della chiusura', euro(saldoConc), {b:1})}
+      ${rc.acquistiSRL ? tr('+ Acquisti SRL del mese', euro(rc.acquistiSRL)) : ''}
+      ${tr('− Saldo di chiusura, da fatturare a PS SRLS ('+MESI[rc.m]+' '+rc.y+')', euro(-rc.quotaEffettiva))}
+      ${tr('= Magazzino SRL al '+dmyStr(c.dataRif), euro(rc.saldoFine), {b:1})}
+    </table>
+    <div class="param-group-title" style="margin:16px 0 8px">Partite da regolare con PS SRLS (imponibile)</div>
+    <table>
+      ${tr('Saldo magazzino da fatturare '+(c.inFatturaMensile===false?'(fattura separata)':'(incluso nella fattura TS→PS di '+MESI[rc.m].toLowerCase()+', riga «Quota acquisto magazzino»)'), euro(rc.quotaEffettiva))}
+      ${(c.partite||[]).map(p=>tr('+ '+p.desc, euro(p.importo))).join('')}
+      ${tr('= Totale dovuto da PS SRLS', euro(totDovuto), {b:1})}
+      ${tr('− Nota di credito per rettifica MOL marzo–settembre (coeff. '+fmt(c.coefficiente.valore)+'%)', euro(-(nc.imponibile||0)))}
+      ${tr('= Saldo netto a favore di TS SRL', euro(netto), {b:1})}
+    </table>
+    ${nc.righe ? `<details style="margin-top:12px"><summary style="cursor:pointer;color:var(--accent2)">Dettaglio nota di credito (imponibile €${fmt(nc.imponibile)} · IVA 22% €${fmt(nc.iva)} · totale €${fmt(nc.totale)})</summary>
+      <div class="hint" style="margin:8px 0">${nc.descrizione}</div>
+      <table><tr><th>Mese</th><th>Fattura</th><th>Fatturato F</th><th>Coeff. in fattura</th><th>Rettifica 30% MOL</th></tr>
+      ${nc.righe.map(r=>`<tr><td class="txt">${MESI[parseInt(r.mese.slice(5,7))-1]} ${r.mese.slice(0,4)}</td><td class="txt">${r.fattura}</td><td>${euro(r.F)}</td><td>${fmt(r.cf)}%</td><td>${euro(r.importo)}</td></tr>`).join('')}
+      <tr style="font-weight:700"><td class="txt">Totale</td><td></td><td></td><td></td><td>${euro(nc.imponibile)}</td></tr></table></details>` : ''}
+    ${admin ? `<label style="display:flex;gap:8px;align-items:center;margin-top:14px"><input type="checkbox" ${c.inFatturaMensile!==false?'checked':''} onchange="toggleConcInFattura(this.checked)"> Includi il saldo di chiusura nella fattura TS→PS di ${MESI[rc.m].toLowerCase()} (se lo fatturi a parte, togli la spunta)</label>` : ''}
+  </div>`;
+}
+function dmyStr(iso){ const [y,m,d]=iso.split('-'); return d+'/'+m+'/'+y; }
 function popolaSelectAnnoMese(idAnno, idMese){
   const selA = document.getElementById(idAnno), selM = document.getElementById(idMese);
   if(!selA || selA.options.length) return;
