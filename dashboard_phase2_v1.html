@@ -162,7 +162,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
 </head>
 <body>
 
-<div class="test-banner" id="prod-banner" style="display:none">🔶 GETTONIERE-SHOP V6 — collegato a Firebase (nodo datiV6, separato da v2) &nbsp; <span>Contratto Step 2 dal 01/09/2026</span> <span>rev.7 · 31/10/2026</span></div>
+<div class="test-banner" id="prod-banner" style="display:none">🔶 GETTONIERE-SHOP V6 — collegato a Firebase (nodo datiV6, separato da v2) &nbsp; <span>Contratto Step 2 dal 01/09/2026</span> <span>rev.8 · 02/11/2026</span></div>
 
 <!-- ══════════ LOGIN ══════════ -->
 <div id="login-screen">
@@ -190,6 +190,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
   <button class="nav-tab" data-pg="acquisti" onclick="showPage('acquisti')">Acquisti</button>
   <button class="nav-tab" data-pg="ic" onclick="showPage('ic')">Intercompany</button>
   <button class="nav-tab" data-pg="magazzino" onclick="showPage('magazzino')">Magazzino</button>
+  <button class="nav-tab" data-pg="cmcalc" onclick="showPage('cmcalc')">📊 Calcolo CM%</button>
   <button class="nav-tab" data-pg="straordinari" onclick="showPage('straordinari')">Costi Straord.</button>
   <button class="nav-tab" data-pg="parametri" onclick="showPage('parametri')">Parametri</button>
   <button class="nav-tab" data-pg="audit" onclick="showPage('audit')">Audit Log</button>
@@ -338,6 +339,38 @@ tr:hover td{background:rgba(255,255,255,.02)}
   </div>
   <div class="kpi-grid" id="abb-kpi"></div>
   <div class="card"><div id="abb-lista"></div></div>
+</div>
+
+<!-- ══════════ CALCOLO CM% ══════════ -->
+<div class="page" id="page-cmcalc">
+  <div class="section-title">📊 Calcolo del coefficiente CM% (costo materiale)</div>
+  <div class="formula-box">CM% = <span class="hl">(Magazzino iniziale + Acquisti materiale − Magazzino finale)</span> ÷ <span class="hl">(Vendite SRLS gettoniere + Vendite SRL gettoniere)</span>, tutto IVA esclusa. Vendite SRLS = F netto resi (solo gettoniere, senza LAVAMICI). Vendite SRL = canali Amazon / Shopify / Estero, esclusi gli abbonamenti e i servizi. Acquisti = materiale netto di SRL e SRLS dalla pagina Acquisti. Magazzino iniziale e finale (gruppo) si digitano a mano. <b>Calcolo informativo:</b> non modifica il parametro CM né le fatture; la differenza rispetto al coefficiente in uso (Art.9, parametro strutturale) è la base per eventuali note di credito o debito.</div>
+  <div class="warn-box" id="cmcalc-permesso-warn" style="display:none">🔒 Sola lettura — i valori di magazzino possono essere inseriti solo da TS SRL.</div>
+  <div class="card">
+    <div class="param-group-title" style="margin-bottom:14px">1 · Periodo (uno o più mesi)</div>
+    <div class="field-row" style="align-items:flex-end">
+      <div><label>Anno</label><select id="cm-anno" onchange="cmCambiaAnno()"></select></div>
+      <div id="cm-mesi" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+    </div>
+    <div class="field-row" style="margin-top:10px">
+      <button class="btn" onclick="cmPreset('corrente')">Mese in corso</button>
+      <button class="btn" onclick="cmPreset('anno')">Tutto l'anno</button>
+      <button class="btn" onclick="cmPreset('nessuno')">Deseleziona</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="param-group-title" style="margin-bottom:14px">2 · Magazzino del periodo (inserimento manuale, IVA esclusa)</div>
+    <div class="field-row">
+      <div><label>Magazzino iniziale (€) — inizio del primo mese</label><input type="number" id="cm-mag-ini" step="0.01" style="width:190px" oninput="cmCalcAggiorna()" onchange="cmSalvaValori()"></div>
+      <div><label>Magazzino finale (€) — fine dell'ultimo mese</label><input type="number" id="cm-mag-fin" step="0.01" style="width:190px" oninput="cmCalcAggiorna()" onchange="cmSalvaValori()"></div>
+      <button class="btn" id="cm-salva-btn" onclick="cmSalvaValori(); salvaManuale('cm-salva-btn')">💾 Salva</button>
+    </div>
+    <div class="hint">I valori restano salvati per il periodo selezionato (stessi mesi, stesso anno).</div>
+  </div>
+  <div class="kpi-grid" id="cm-kpi"></div>
+  <div class="card"><div id="cm-dettaglio"></div></div>
+  <div class="section-title" style="font-size:16px;margin-top:24px">⚖️ Differenza rispetto al coefficiente in uso</div>
+  <div class="card"><div id="cm-conguaglio"></div></div>
 </div>
 
 <!-- ══════════ ACQUISTI ══════════ -->
@@ -518,7 +551,7 @@ function mostraStatoFirebase(ok, msg){
   if(ok){
     banner.style.display = 'block';
     banner.style.background = 'repeating-linear-gradient(45deg,#4ade80,#4ade80 12px,#0d0f14 12px,#0d0f14 24px)';
-    banner.innerHTML = '🟢 GETTONIERE-SHOP V6 — collegato a Firebase (nodo datiV6) <span>Contratto Step 2 dal 01/09/2026</span> <span>rev.7 · 31/10/2026</span>';
+    banner.innerHTML = '🟢 GETTONIERE-SHOP V6 — collegato a Firebase (nodo datiV6) <span>Contratto Step 2 dal 01/09/2026</span> <span>rev.8 · 02/11/2026</span>';
   } else {
     banner.style.display = 'block';
     banner.style.background = 'repeating-linear-gradient(45deg,#f87171,#f87171 12px,#0d0f14 12px,#0d0f14 24px)';
@@ -565,6 +598,7 @@ function normalizzaStato(){
   S.v6_chiusure = S.v6_chiusure || {};
   S.v6_abbonamenti = S.v6_abbonamenti || [];
   S.v6_lavamici = S.v6_lavamici || [];
+  S.v6_cmcalc = S.v6_cmcalc || {};
   applicaConciliazioneRev7();
 }
 // rev.7 (31/10/2026) — Coefficiente materiali 40,46% da ottobre 2026 + "Conciliazione mesi precedenti".
@@ -794,6 +828,8 @@ function applyPermissions(){
   // segnalazione di Tullio: mancava del tutto questo blocco, chiunque poteva inserirli/eliminarli).
   const admin = isAdmin();
   document.getElementById('amazon-permesso-warn').style.display = admin ? 'none' : 'block';
+  document.getElementById('cmcalc-permesso-warn').style.display = admin ? 'none' : 'block';
+  ['cm-mag-ini','cm-mag-fin','cm-salva-btn'].forEach(id=>{ const el = document.getElementById(id); if(el) el.disabled = !admin; });
   ['vc-data','vc-canale','vc-tipo','vc-iva','vc-desc','vc-guadagni','vc-add-btn'].forEach(id=>{
     const el = document.getElementById(id);
     if(el) el.disabled = !admin;
@@ -1138,6 +1174,7 @@ function renderAll(){
   renderAmazon();
   renderAbbonamenti();
   renderLavamici();
+  renderCmCalc();
   renderAcquisti();
   renderIC();
   renderMagazzino();
@@ -1589,6 +1626,129 @@ function renderLavamici(){
   document.getElementById('lavamici-lista').innerHTML = lista.length ? `<table><tr><th>Data</th><th>IVA</th><th>Descrizione</th><th>Lordo</th><th>Netto</th><th></th></tr>
     ${lista.map(v=>`<tr><td>${v.data}</td><td class="txt">${ivaAcqBadge(v.ivaFlag)}</td><td class="txt">${v.desc||''}</td><td>${euro(v.lordo)}</td><td>${euro(v.netto)}</td><td>${btnElimina(v.data, `eliminaVenditaLavamici(${v.id})`)}</td></tr>`).join('')}</table>`
     : '<div class="empty-state">Nessuna vendita LAVAMICI nel mese selezionato.</div>';
+}
+
+// ══════════════════════════════════════════════════════════════
+// CALCOLO CM% (rev.8, 02/11/2026) — pagina informativa, non modifica parametri né fatture.
+// CM% = (Mag.iniziale + Acquisti materiale − Mag.finale) / (Vendite SRLS gettoniere + Vendite SRL gettoniere).
+// ══════════════════════════════════════════════════════════════
+function cmInit(){
+  if(window._cmAnno === undefined){ window._cmAnno = window.viewYear; window._cmMesi = [window.viewMonth]; }
+}
+function cmChiave(){ return window._cmAnno + '-' + window._cmMesi.map(m=>String(m+1).padStart(2,'0')).join(''); }
+function cmToggleMese(m){
+  const i = window._cmMesi.indexOf(m);
+  if(i>=0) window._cmMesi.splice(i,1); else { window._cmMesi.push(m); window._cmMesi.sort((a,b)=>a-b); }
+  window._cmKeyCaricata = null; renderCmCalc();
+}
+function cmCambiaAnno(){
+  window._cmAnno = parseInt(document.getElementById('cm-anno').value,10);
+  window._cmKeyCaricata = null; renderCmCalc();
+}
+function cmPreset(tipo){
+  if(tipo==='corrente'){ const now = new Date(); window._cmAnno = now.getFullYear(); window._cmMesi = [now.getMonth()]; }
+  else if(tipo==='anno'){ window._cmMesi = [0,1,2,3,4,5,6,7,8,9,10,11]; }
+  else { window._cmMesi = []; }
+  window._cmKeyCaricata = null; renderCmCalc();
+}
+function cmSalvaValori(){
+  if(!requireAdmin('inserire i valori di magazzino per il calcolo CM%')) return;
+  if(!window._cmMesi.length) return;
+  const iniEl = document.getElementById('cm-mag-ini'), finEl = document.getElementById('cm-mag-fin');
+  const rec = { magIniziale: iniEl.value === '' ? null : parseFloat(iniEl.value), magFinale: finEl.value === '' ? null : parseFloat(finEl.value) };
+  const chiave = cmChiave();
+  const prima = S.v6_cmcalc[chiave] || null;
+  if(prima && prima.magIniziale === rec.magIniziale && prima.magFinale === rec.magFinale) return;
+  S.v6_cmcalc[chiave] = rec;
+  pushAudit('calcolo CM% — magazzino periodo ' + chiave, 'v6_cmcalc', prima, rec);
+}
+// Dati per ogni mese selezionato (calcolaMeseCompleto restituisce la fotografia per i mesi chiusi).
+function cmDatiPeriodo(){
+  const y = window._cmAnno;
+  const acq = (parte, m) => round2((S.v6_acquisti_det[parte]||[]).filter(v=>v.tipo==='materiale' && inMese(v.data,y,m)).reduce((a,v)=>a+(parseFloat(v.netto)||0),0));
+  return window._cmMesi.map(m=>{
+    const c = calcolaMeseCompleto(y,m);
+    const venditeSRLS = round2(c.lavamici && c.lavamici.FOrd !== undefined ? c.lavamici.FOrd : c.F);
+    const am = round2(c.amazonGuadagni||0), sh = round2(c.shopifyGuadagni||0), es = round2(c.spagnaGuadagni||0);
+    return { m, c, venditeSRLS, am, sh, es, venditeSRL: round2(am+sh+es), acqSRL: acq('srl',m), acqSRLS: acq('srls',m) };
+  });
+}
+function renderCmCalc(){
+  const elKpi = document.getElementById('cm-kpi');
+  if(!elKpi) return;
+  cmInit();
+  const selAnno = document.getElementById('cm-anno');
+  if(!selAnno.options.length){
+    for(let a=2026;a<=2030;a++){ const o=document.createElement('option'); o.value=a; o.textContent=a; selAnno.appendChild(o); }
+  }
+  selAnno.value = window._cmAnno;
+  document.getElementById('cm-mesi').innerHTML = MESI.map((nm,i)=>`<button class="btn${window._cmMesi.includes(i)?' primary':''}" onclick="cmToggleMese(${i})">${nm.slice(0,3)}</button>`).join('');
+  // I valori di magazzino si ricaricano solo al cambio di periodo, mai mentre si digita.
+  const chiave = window._cmMesi.length ? cmChiave() : '';
+  if(window._cmKeyCaricata !== chiave){
+    const sv = (S.v6_cmcalc||{})[chiave] || {};
+    document.getElementById('cm-mag-ini').value = sv.magIniziale ?? '';
+    document.getElementById('cm-mag-fin').value = sv.magFinale ?? '';
+    window._cmKeyCaricata = chiave;
+  }
+  cmCalcAggiorna();
+}
+function cmCalcAggiorna(){
+  const elKpi = document.getElementById('cm-kpi');
+  const elDett = document.getElementById('cm-dettaglio');
+  const elCong = document.getElementById('cm-conguaglio');
+  if(!window._cmMesi.length){
+    elKpi.innerHTML = ''; elDett.innerHTML = '<div class="empty-state">Seleziona almeno un mese.</div>'; elCong.innerHTML = '';
+    return;
+  }
+  const y = window._cmAnno;
+  const dati = cmDatiPeriodo();
+  const somma = k => round2(dati.reduce((a,d)=>a+d[k],0));
+  const vSRLS = somma('venditeSRLS'), vSRL = somma('venditeSRL'), acqSRL = somma('acqSRL'), acqSRLS = somma('acqSRLS');
+  const iniV = document.getElementById('cm-mag-ini').value, finV = document.getElementById('cm-mag-fin').value;
+  const haMag = iniV !== '' && finV !== '';
+  const magIni = parseFloat(iniV)||0, magFin = parseFloat(finV)||0;
+  const ricavi = round2(vSRLS + vSRL);
+  const acquisti = round2(acqSRL + acqSRLS);
+  const consumati = round2(magIni + acquisti - magFin);
+  const cmCalc = haMag && ricavi > 0 ? round2(consumati / ricavi * 100) : null;
+  const periodo = window._cmMesi.length === 1 ? MESI[window._cmMesi[0]] + ' ' + y : window._cmMesi.map(m=>MESI[m].slice(0,3)).join('+') + ' ' + y;
+  elKpi.innerHTML = `
+    <div class="kpi"><div class="kpi-label">Vendite SRLS (F gettoniere)</div><div class="kpi-value">${euro(vSRLS)}</div><div class="kpi-sub">netto resi, IVA esclusa</div></div>
+    <div class="kpi"><div class="kpi-label">Vendite SRL (Amazon/Shopify/Estero)</div><div class="kpi-value">${euro(vSRL)}</div><div class="kpi-sub">IVA esclusa, senza abbonamenti</div></div>
+    <div class="kpi"><div class="kpi-label">Ricavi gettoniere</div><div class="kpi-value">${euro(ricavi)}</div><div class="kpi-sub">${periodo}</div></div>
+    <div class="kpi"><div class="kpi-label">Materiali consumati</div><div class="kpi-value">${haMag ? euro(consumati) : '—'}</div><div class="kpi-sub">${haMag ? 'iniziale '+fmt(magIni)+' + acquisti '+fmt(acquisti)+' − finale '+fmt(magFin) : 'inserisci magazzino iniziale e finale'}</div></div>
+    <div class="kpi gold"><div class="kpi-label">CM% del periodo</div><div class="kpi-value">${cmCalc===null ? '—' : fmt(cmCalc)+'%'}</div><div class="kpi-sub">${ricavi>0 ? '' : 'nessun ricavo nel periodo'}</div></div>`;
+  elDett.innerHTML = `<table><tr><th>Mese</th><th>Vendite SRLS</th><th>Amazon</th><th>Shopify</th><th>Estero</th><th>Vendite SRL</th><th>Acquisti SRL</th><th>Acquisti SRLS</th></tr>
+    ${dati.map(d=>`<tr><td class="txt">${MESI[d.m]}${d.c._chiusura?' 🔒':''}</td><td>${euro(d.venditeSRLS)}</td><td>${euro(d.am)}</td><td>${euro(d.sh)}</td><td>${euro(d.es)}</td><td>${euro(d.venditeSRL)}</td><td>${euro(d.acqSRL)}</td><td>${euro(d.acqSRLS)}</td></tr>`).join('')}
+    <tr><td class="txt"><b>Totale</b></td><td><b>${euro(vSRLS)}</b></td><td><b>${euro(somma('am'))}</b></td><td><b>${euro(somma('sh'))}</b></td><td><b>${euro(somma('es'))}</b></td><td><b>${euro(vSRL)}</b></td><td><b>${euro(acqSRL)}</b></td><td><b>${euro(acqSRLS)}</b></td></tr></table>
+    <div class="hint">Le vendite SRL sono i valori IVA esclusa registrati nella pagina Amazon/Shopify/Estero (campo «Guadagni netti»); gli acquisti sono quelli di tipo «Materiale» (netto, senza maggiorazione). Se in questa pagina mancano acquisti o vendite del periodo, il CM% non è completo.</div>`;
+  if(cmCalc === null){
+    elCong.innerHTML = '<div class="empty-state">Inserisci magazzino iniziale e finale per vedere la differenza rispetto al coefficiente in uso.</div>';
+    return;
+  }
+  // Ricalcolo MOL e quota TS di ogni mese con il CM% del periodo (arrotondato a 2 decimali, come il parametro).
+  const righe = dati.map(d=>{
+    const c = d.c, F = c.F, FL = (c.lavamici && c.lavamici.FL) || 0;
+    const COA = c.coaRes ? c.coaRes.totale : 0;
+    const costoCalc = round2(F * cmCalc / 100);
+    const qr = calcolaQuoteMOL(calcolaMOL(F, costoCalc, COA), F, y, d.m, FL);
+    const quotaUso = c.quote ? (c.quote.quotaTS || 0) : 0;
+    return { m: d.m, F, cmUso: c.cmPct, costoUso: c.CM, costoCalc, quotaUso, quotaCalc: qr.quotaTS || 0, diff: round2((qr.quotaTS||0) - quotaUso) };
+  });
+  const tot = k => round2(righe.reduce((a,r)=>a+r[k],0));
+  const diffTot = tot('diff');
+  const imp = Math.abs(diffTot), iva = round2(imp*0.22);
+  let esito;
+  if(imp < 0.005) esito = '<div class="hint">Nessuna differenza: la quota MOL della SRL già fatturata coincide con quella ricalcolata.</div>';
+  else if(diffTot < 0) esito = `<div class="formula-box" style="margin-top:14px"><span class="hl">Nota di credito TS SRL → PS SRLS</span>: con il CM% ${fmt(cmCalc)}% il MOL scende e la quota della SRL risulta troppo alta di <span class="hl">${euro(imp)}</span> (imponibile) · IVA 22% ${euro(iva)} · totale ${euro(round2(imp+iva))}.</div>`;
+  else esito = `<div class="formula-box" style="margin-top:14px"><span class="hl">Nota di debito / fattura integrativa TS SRL → PS SRLS</span>: con il CM% ${fmt(cmCalc)}% il MOL sale e la quota della SRL risulta troppo bassa di <span class="hl">${euro(imp)}</span> (imponibile) · IVA 22% ${euro(iva)} · totale ${euro(round2(imp+iva))}.</div>`;
+  const pre = dati.some(d=>meseChiave(y,d.m) < '2026-10');
+  elCong.innerHTML = `<table><tr><th>Mese</th><th>F (SRLS)</th><th>CM in uso</th><th>Costo in uso</th><th>Costo con CM% ${fmt(cmCalc)}</th><th>Quota TS in uso</th><th>Quota TS ricalcolata</th><th>Differenza</th></tr>
+    ${righe.map(r=>`<tr><td class="txt">${MESI[r.m]}</td><td>${euro(r.F)}</td><td>${fmt(r.cmUso)}%</td><td>${euro(r.costoUso)}</td><td>${euro(r.costoCalc)}</td><td>${euro(r.quotaUso)}</td><td>${euro(r.quotaCalc)}</td><td style="color:${r.diff<0?'var(--danger)':'var(--accent2)'}">${euro(r.diff)}</td></tr>`).join('')}
+    <tr><td class="txt"><b>Totale</b></td><td><b>${euro(tot('F'))}</b></td><td></td><td><b>${euro(tot('costoUso'))}</b></td><td><b>${euro(tot('costoCalc'))}</b></td><td><b>${euro(tot('quotaUso'))}</b></td><td><b>${euro(tot('quotaCalc'))}</b></td><td><b>${euro(diffTot)}</b></td></tr></table>
+    ${esito}
+    <div class="hint">Differenza negativa = la SRL ha fatturato più del dovuto (nota di credito); positiva = ha fatturato meno (nota di debito). Il ricalcolo usa MOL = F − CM − COA e le percentuali/soglie del mese.${pre ? ' Per i mesi precedenti a ottobre 2026 il confronto non tiene conto di note di credito già emesse.' : ''}</div>`;
 }
 
 // ── RESI ──
