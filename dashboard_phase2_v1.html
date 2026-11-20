@@ -162,7 +162,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
 </head>
 <body>
 
-<div class="test-banner" id="prod-banner" style="display:none">🔶 GETTONIERE-SHOP V6 — collegato a Firebase (nodo datiV6, separato da v2) &nbsp; <span>Contratto Step 2 dal 01/09/2026</span> <span>rev.10 · 20/11/2026</span></div>
+<div class="test-banner" id="prod-banner" style="display:none">🔶 GETTONIERE-SHOP V6 — collegato a Firebase (nodo datiV6, separato da v2) &nbsp; <span>Contratto Step 2 dal 01/09/2026</span> <span>rev.11 · 20/11/2026</span></div>
 
 <!-- ══════════ LOGIN ══════════ -->
 <div id="login-screen">
@@ -566,7 +566,7 @@ function mostraStatoFirebase(ok, msg){
   if(ok){
     banner.style.display = 'block';
     banner.style.background = 'repeating-linear-gradient(45deg,#4ade80,#4ade80 12px,#0d0f14 12px,#0d0f14 24px)';
-    banner.innerHTML = '🟢 GETTONIERE-SHOP V6 — collegato a Firebase (nodo datiV6) <span>Contratto Step 2 dal 01/09/2026</span> <span>rev.10 · 20/11/2026</span>';
+    banner.innerHTML = '🟢 GETTONIERE-SHOP V6 — collegato a Firebase (nodo datiV6) <span>Contratto Step 2 dal 01/09/2026</span> <span>rev.11 · 20/11/2026</span>';
   } else {
     banner.style.display = 'block';
     banner.style.background = 'repeating-linear-gradient(45deg,#f87171,#f87171 12px,#0d0f14 12px,#0d0f14 24px)';
@@ -1188,17 +1188,23 @@ function monthLabel(){ return MESI[window.viewMonth] + ' ' + window.viewYear; }
 // ══════════════════════════════════════════════════════════════
 const SIM_STEPS = [2000,3000,4000,5000,6000,7000];
 const SIM_COL = ['#60a5fa','#22d3ee','#4ade80','#f0b429','#fb923c','#a78bfa'];
-const SIM_BASE_COL = '#94a3b8';
-const SIM_X0 = 10000, SIM_X1 = 40000, SIM_DX = 500;
-window.simSel = window.simSel || { base:true, contributo:true, 2000:true, 3000:false, 4000:true, 5000:false, 6000:false, 7000:true };
+const SIM_BASE_COL = '#94a3b8', SIM_REAL_COL = '#ffffff';
+const SIM_X0 = 10000, SIM_X1 = 100000, SIM_DX = 1000;
+window.simSel = window.simSel || { base:true, reale:true, contributo:true, 2000:true, 3000:false, 4000:true, 5000:false, 6000:false, 7000:true };
+if(window.simSel.reale === undefined) window.simSel.reale = true;
 function simParametri(){
   const y = window.viewYear, m = window.viewMonth, ds = meseChiave(y,m)+'-15';
   const c = calcolaMeseCompleto(y,m);
+  const opsAmz = (S.v6_amazon||[]).filter(v=>inMese(v.data,y,m));
   return { y, m, c, cm: c.cmPct, coa: c.coaRes.totale,
     roy: getParam('royaltyPct', ds) ?? 3, soglia: getParam('sogliaMol', ds) ?? 90000,
     p1: getParam('percTS', ds) ?? 30, p2: getParam('percTSExtra', ds) ?? 33,
     contributo: c.contributoForfettario, struttura: c.corrispettivoStruttura,
-    pAmz: getParam('percAmazon', ds) ?? 58, FL: Math.max(0, (c.lavamici && c.lavamici.FL) || 0), FOrd: (c.lavamici && c.lavamici.FOrd!==undefined) ? c.lavamici.FOrd : c.F };
+    pAmz: getParam('percAmazon', ds) ?? 58, FL: Math.max(0, (c.lavamici && c.lavamici.FL) || 0),
+    FOrd: (c.lavamici && c.lavamici.FOrd!==undefined) ? c.lavamici.FOrd : c.F,
+    // vendite Amazon reali del mese (accrediti IVA inclusa, dalla pagina Amazon) e data dell'ultima operazione
+    Areale: round2(opsAmz.reduce((a,v)=>a+(parseFloat(v.importoLordo!==undefined?v.importoLordo:v.guadagni)||0),0)),
+    Anum: opsAmz.length, Aultima: opsAmz.reduce((a,v)=>v.data>a?v.data:a,'') };
 }
 function simGuadagnoTS(F, A, p, conContributo){
   // F = fatturato gettoniere (variabile). LAVAMICI (p.FL) resta fisso al valore del mese e divide con le gettoniere
@@ -1216,44 +1222,49 @@ function simNiceStep(range, n){
   return (f<=1?1:f<=2?2:f<=5?5:10) * mag;
 }
 function simToggle(k, v){ window.simSel[k] = v; renderSimTS(); }
+function simVaiReale(){ window.simCur = null; renderSimTS(); }
+function simSetF(v){ const x = parseFloat(v); if(!isFinite(x)) return; window.simCur = { k: meseChiave(window.viewYear,window.viewMonth), x: Math.max(SIM_X0, Math.min(SIM_X1, x)) }; renderSimTS(); }
 function renderSimTS(){
   const nav = document.getElementById('nav-simts');
   if(nav) nav.style.display = isAdmin() ? '' : 'none';
   const host = document.getElementById('simts-content');
   if(!host) return;
   if(!isAdmin()){ host.innerHTML = '<div class="warn-box">🔒 Sezione riservata a TS SRL.</div>'; return; }
-  const p = simParametri(), sel = window.simSel;
-  const series = [{ key:'base', label:'Senza Amazon', A:0, col:SIM_BASE_COL, dash:true }]
-    .concat(SIM_STEPS.map((A,i)=>({ key:A, label:'Amazon '+A.toLocaleString('it-IT')+' €/mese', A, col:SIM_COL[i], dash:false })));
-  const xs = []; for(let x=SIM_X0; x<=SIM_X1; x+=SIM_DX) xs.push(x);
+  const p = simParametri(), sel = window.simSel, mk = meseChiave(p.y,p.m);
+  const FM = p.FOrd;
+  let cx = (window.simCur && window.simCur.k===mk) ? window.simCur.x : FM;
+  cx = Math.max(SIM_X0, Math.min(SIM_X1, cx));
+  { const ml = document.getElementById('sim-month-label'); if(ml) ml.textContent = monthLabel(); }
+  const dUlt = p.Aultima ? p.Aultima.slice(8)+'/'+p.Aultima.slice(5,7) : '';
+  const series = [
+    { key:'base', label:'Senza Amazon', A:0, col:SIM_BASE_COL, dash:true, w:2.2 } ]
+    .concat(SIM_STEPS.map((A,i)=>({ key:A, label:'Amazon '+A.toLocaleString('it-IT')+' €/mese', A, col:SIM_COL[i], dash:false, w:2.2 })))
+    .concat([{ key:'reale', label:'Amazon reale '+MESI[p.m]+(dUlt?' (al '+dUlt+')':'')+': '+euro(p.Areale), A:p.Areale, col:SIM_REAL_COL, dash:false, w:3.6, real:true }]);
+  const xsSet = new Set(); for(let x=SIM_X0; x<=SIM_X1; x+=SIM_DX) xsSet.add(x);
+  const xJump = p.soglia - p.FL;      // il MOL passa al 33% quando F + LAVAMICI supera la soglia
+  if(xJump>SIM_X0 && xJump<SIM_X1){ xsSet.add(xJump-0.01); xsSet.add(xJump+0.01); }
+  const xs = [...xsSet].sort((a,b)=>a-b);
   const val = (s,x)=> simGuadagnoTS(x, s.A, p, sel.contributo).tot;
   let ymin = Infinity, ymax = -Infinity;
   series.forEach(s=>xs.forEach(x=>{ const v = val(s,x); if(v<ymin) ymin=v; if(v>ymax) ymax=v; }));
-  const step = simNiceStep(ymax-ymin, 5), y0 = Math.floor(ymin/step)*step, y1 = Math.ceil(ymax/step)*step;
-  const W=900, H=400, L=72, R=24, T=18, B=46, pw=W-L-R, ph=H-T-B;
+  const step = simNiceStep(ymax-ymin, 6), y0 = Math.floor(ymin/step)*step, y1 = Math.ceil(ymax/step)*step;
+  const W=900, H=430, L=72, R=24, T=24, B=46, pw=W-L-R, ph=H-T-B;
   const px = x=> L + (x-SIM_X0)/(SIM_X1-SIM_X0)*pw, py = v=> T + (1-(v-y0)/(y1-y0))*ph;
-  let svg = `<svg id="sim-svg" viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;font-family:var(--mono)">`;
-  for(let v=y0; v<=y1+1e-6; v+=step){
-    svg += `<line x1="${L}" x2="${W-R}" y1="${py(v)}" y2="${py(v)}" stroke="#2a3140" stroke-width="1"/><text x="${L-8}" y="${py(v)+4}" fill="#8b94a7" font-size="11" text-anchor="end">${Math.round(v).toLocaleString('it-IT')}</text>`;
-  }
-  for(let x=SIM_X0; x<=SIM_X1; x+=5000){
-    svg += `<line x1="${px(x)}" x2="${px(x)}" y1="${T}" y2="${H-B}" stroke="#222a38" stroke-width="1"/><text x="${px(x)}" y="${H-B+18}" fill="#8b94a7" font-size="11" text-anchor="middle">${x.toLocaleString('it-IT')}</text>`;
-  }
+  let svg = `<svg id="sim-svg" viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;font-family:var(--mono);touch-action:none;user-select:none">`;
+  for(let v=y0; v<=y1+1e-6; v+=step) svg += `<line x1="${L}" x2="${W-R}" y1="${py(v)}" y2="${py(v)}" stroke="#2a3140" stroke-width="1"/><text x="${L-8}" y="${py(v)+4}" fill="#8b94a7" font-size="11" text-anchor="end">${Math.round(v).toLocaleString('it-IT')}</text>`;
+  for(let x=SIM_X0; x<=SIM_X1; x+=10000) svg += `<line x1="${px(x)}" x2="${px(x)}" y1="${T}" y2="${H-B}" stroke="#222a38" stroke-width="1"/><text x="${px(x)}" y="${H-B+18}" fill="#8b94a7" font-size="11" text-anchor="middle">${x.toLocaleString('it-IT')}</text>`;
   svg += `<text x="${L+pw/2}" y="${H-6}" fill="#8b94a7" font-size="12" text-anchor="middle">Fatturato mensile PS SRLS — gettoniere (F), € IVA esclusa</text>`;
   svg += `<text transform="rotate(-90)" x="${-(T+ph/2)}" y="14" fill="#8b94a7" font-size="12" text-anchor="middle">Guadagno TS al mese, €</text>`;
-  const FM = p.FOrd, inRange = FM>=SIM_X0 && FM<=SIM_X1;
+  if(xJump>SIM_X0 && xJump<SIM_X1) svg += `<line x1="${px(xJump)}" x2="${px(xJump)}" y1="${T}" y2="${H-B}" stroke="#f87171" stroke-width="1" stroke-dasharray="3 4" opacity=".7"/><text x="${px(xJump)-5}" y="${T+11}" fill="#f87171" font-size="10.5" text-anchor="end">oltre soglia MOL ${Math.round(p.soglia).toLocaleString('it-IT')} € → ${fmt(p.p2)}%</text>`;
   series.filter(s=>sel[s.key]).forEach(s=>{
-    svg += `<polyline fill="none" stroke="${s.col}" stroke-width="2.2" ${s.dash?'stroke-dasharray="6 5"':''} points="${xs.map(x=>px(x).toFixed(1)+','+py(val(s,x)).toFixed(1)).join(' ')}"/>`;
-    if(inRange) svg += `<circle cx="${px(FM)}" cy="${py(val(s,FM))}" r="4.5" fill="${s.col}" stroke="#12161f" stroke-width="1.5"/>`;
+    svg += `<polyline fill="none" stroke="${s.col}" stroke-width="${s.w}" stroke-linejoin="round" ${s.dash?'stroke-dasharray="6 5"':''} points="${xs.map(x=>px(x).toFixed(1)+','+py(val(s,x)).toFixed(1)).join(' ')}"/>`;
   });
-  if(inRange) svg += `<line x1="${px(FM)}" x2="${px(FM)}" y1="${T}" y2="${H-B}" stroke="#f0b429" stroke-width="1" stroke-dasharray="2 4"/><text x="${px(FM)+5}" y="${T+11}" fill="#f0b429" font-size="11">${MESI[p.m]}: ${Math.round(FM).toLocaleString('it-IT')} €</text>`;
-  svg += `<line id="sim-hv" x1="0" x2="0" y1="${T}" y2="${H-B}" stroke="#cbd5e1" stroke-width="1" style="display:none"/>`;
-  svg += `<rect id="sim-hit" x="${L}" y="${T}" width="${pw}" height="${ph}" fill="transparent"/></svg>`;
+  if(FM>=SIM_X0 && FM<=SIM_X1) svg += `<line x1="${px(FM)}" x2="${px(FM)}" y1="${T}" y2="${H-B}" stroke="#f0b429" stroke-width="1" stroke-dasharray="2 4"/><text x="${px(FM)+5}" y="${H-B-6}" fill="#f0b429" font-size="10.5">fatturato reale ${MESI[p.m].toLowerCase()}</text>`;
+  svg += `<g id="sim-cur"></g><rect id="sim-hit" x="${L}" y="${T}" width="${pw}" height="${ph}" fill="transparent" style="cursor:ew-resize"/></svg>`;
 
-  const chk = (k, label, col)=>`<label style="display:inline-flex;align-items:center;gap:6px;margin:0 14px 8px 0;cursor:pointer"><input type="checkbox" ${sel[k]?'checked':''} onchange="simToggle('${k}', this.checked)" style="accent-color:${col}"><span style="display:inline-block;width:18px;height:3px;background:${col};border-radius:2px"></span>${label}</label>`;
-  const legenda = series.map(s=>chk(s.key, s.label, s.col)).join('');
-
-  const rows = series.map(s=>{
+  const chk = (k, label, col, bold)=>`<label style="display:inline-flex;align-items:center;gap:6px;margin:0 14px 8px 0;cursor:pointer${bold?';font-weight:700':''}"><input type="checkbox" ${sel[k]?'checked':''} onchange="simToggle('${k}', this.checked)" style="accent-color:${col}"><span style="display:inline-block;width:18px;height:3px;background:${col};border-radius:2px"></span>${label}</label>`;
+  const legenda = series.filter(s=>!s.real).map(s=>chk(s.key, s.label, s.col)).join('');
+  const rows = series.slice().reverse().map(s=>{
     const r = simGuadagnoTS(FM, s.A, p, sel.contributo);
     return `<tr><td class="txt"><span style="display:inline-block;width:12px;height:3px;background:${s.col};margin-right:6px;vertical-align:middle"></span>${s.label}</td><td>${euro(round2(r.amz))}</td><td><strong>${euro(round2(r.tot))}</strong></td></tr>`;
   }).join('');
@@ -1261,40 +1272,54 @@ function renderSimTS(){
   const pend = (simGuadagnoTS(FM+1000, 0, p, sel.contributo).tot - simGuadagnoTS(FM, 0, p, sel.contributo).tot)/1000;
   const perAmz = 1000/1.22*(1-p.pAmz/100);
 
-  { const ml = document.getElementById('sim-month-label'); if(ml) ml.textContent = monthLabel(); }
   host.innerHTML = `
     <div class="formula-box">Guadagno TS = <span class="hl">royalty ${fmt(p.roy)}% × F</span> + <span class="hl">quota MOL TS (${fmt(p.p1)}% gettoniere, 40% LAVAMICI) su MOL = fatturato − CM ${fmt(p.cm)}% − COA ${euro(p.coa)}</span> + contributo forfettario ${euro(p.contributo)} − corrispettivo struttura ${euro(p.struttura)} + <span class="hl">margine Amazon = ${fmt(100-p.pAmz)}% del guadagno netto</span>. Parametri del mese in vista (${monthLabel()}); importi IVA esclusa. LAVAMICI tenuto fisso a ${euro(p.FL)} (valore del mese), royalty e MOL calcolati sul fatturato totale.</div>
     <div class="card">
       <div class="param-group-title" style="margin-bottom:10px">Livelli di vendite Amazon mensili (accrediti IVA inclusa, come caricati in «Amazon/Shopify/Estero»)</div>
       <div>${legenda}</div>
-      <div style="margin-top:2px">${chk('contributo','Includi contributo forfettario (rimborsa costi sostenuti da TS)','#f0b429')}</div>
+      <div style="margin-top:2px">${chk('reale','Vendite Amazon reali del mese (dalla Dashboard)', SIM_REAL_COL, true)}${chk('contributo','Includi contributo forfettario (rimborsa costi sostenuti da TS)','#f0b429')}</div>
     </div>
-    <div class="card" style="position:relative">
-      ${svg}
-      <div id="sim-tip" style="position:absolute;display:none;pointer-events:none;background:#0f131b;border:1px solid #3a4458;border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.5;white-space:nowrap;z-index:5"></div>
+    <div class="card" style="padding:12px 16px">
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px">
+        <div><label style="margin:0 6px 0 0">Cursore · fatturato PS (€)</label><input type="number" id="sim-fin" step="500" min="${SIM_X0}" max="${SIM_X1}" value="${Math.round(cx)}" style="width:130px" onchange="simSetF(this.value)"></div>
+        <button class="btn" onclick="simVaiReale()" title="Riporta il cursore sul fatturato reale del mese">↩ Fatturato reale: ${euro(round2(FM))}</button>
+        <div class="hint" style="margin:0">Trascina la linea verticale sul grafico (o scrivi il valore): l'incrocio con la linea bianca è il guadagno TS con le vendite Amazon reali.</div>
+      </div>
+      <div id="sim-read" style="margin-top:10px"></div>
     </div>
+    <div class="card" style="position:relative">${svg}</div>
     <div class="card">
-      <div class="param-group-title" style="margin-bottom:10px">Guadagno TS con il fatturato di ${monthLabel()}: F gettoniere = ${euro(round2(FM))}</div>
+      <div class="param-group-title" style="margin-bottom:10px">Guadagno TS con il fatturato reale di ${monthLabel()}: F gettoniere = ${euro(round2(FM))}</div>
       <table><tr><th>Scenario</th><th>Margine Amazon TS</th><th>Guadagno TS</th></tr>${rows}</table>
       <div class="hint" style="margin-top:10px">Parte indipendente da Amazon: royalty ${euro(round2(b.royalty))} + quota MOL TS (gettoniere + LAVAMICI) ${euro(round2(b.quota))}${sel.contributo?' + contributo '+euro(round2(b.contributo)):''} − struttura ${euro(round2(p.struttura))} = <strong>${euro(round2(b.tot))}</strong>.</div>
       <div class="hint">Regole pratiche: ogni +1.000 € di fatturato PS vale circa <strong>+${euro(round2(1000*pend))}</strong> per TS; ogni +1.000 € di accrediti Amazon (IVA inclusa) vale circa <strong>+${euro(round2(perAmz))}</strong> per TS (le linee Amazon sono parallele: il margine Amazon non dipende dal fatturato PS).</div>
-      <div class="hint">Simulazione indicativa: non include costi propri di TS (es. pubblicità), imposte, né eventuali superamenti della soglia MOL oltre ${euro(p.soglia)}.</div>
+      <div class="hint">Vendite Amazon reali: ${p.Anum} operazioni${dUlt?' fino al '+dUlt:''}, ${euro(p.Areale)} (accrediti IVA inclusa); se il mese non è finito la linea bianca è un dato parziale. Oltre ${euro(round2(xJump))} di fatturato gettoniere il MOL passa al ${fmt(p.p2)}% (Art. 10.3) e il guadagno TS scatta verso l'alto. Non incluso: costi propri di TS (es. pubblicità), imposte.</div>
     </div>`;
 
-  const hit = document.getElementById('sim-hit'), hv = document.getElementById('sim-hv'), tip = document.getElementById('sim-tip'), sv = document.getElementById('sim-svg');
-  hit.addEventListener('mousemove', ev=>{
-    const r = sv.getBoundingClientRect(), k = r.width/W;
-    let x = SIM_X0 + ((ev.clientX - r.left)/k - L)/pw*(SIM_X1-SIM_X0);
-    x = Math.max(SIM_X0, Math.min(SIM_X1, Math.round(x/SIM_DX)*SIM_DX));
-    hv.setAttribute('x1', px(x)); hv.setAttribute('x2', px(x)); hv.style.display = '';
-    tip.innerHTML = `<div style="color:#cbd5e1;margin-bottom:3px">F = <strong>${x.toLocaleString('it-IT')} €</strong></div>` +
-      series.filter(s=>sel[s.key]).map(s=>`<div><span style="display:inline-block;width:10px;height:3px;background:${s.col};margin-right:6px;vertical-align:middle"></span>${s.label}: <strong>${euro(round2(val(s,x)))}</strong></div>`).join('');
-    tip.style.display = 'block';
-    const cr = tip.parentElement.getBoundingClientRect();
-    let tx = ev.clientX - cr.left + 14; if(tx + tip.offsetWidth > cr.width - 6) tx = ev.clientX - cr.left - tip.offsetWidth - 14;
-    tip.style.left = tx + 'px'; tip.style.top = Math.max(6, ev.clientY - cr.top - 20) + 'px';
-  });
-  hit.addEventListener('mouseleave', ()=>{ hv.style.display='none'; tip.style.display='none'; });
+  const hit = document.getElementById('sim-hit'), cur = document.getElementById('sim-cur'), sv = document.getElementById('sim-svg'), rd = document.getElementById('sim-read');
+  function disegna(x){
+    cx = Math.max(SIM_X0, Math.min(SIM_X1, x));
+    window.simCur = { k: mk, x: cx };
+    const att = series.filter(s=>sel[s.key]), real = series[series.length-1];
+    let g = `<line x1="${px(cx)}" x2="${px(cx)}" y1="${T-4}" y2="${H-B}" stroke="#e2e8f0" stroke-width="1.6"/><circle cx="${px(cx)}" cy="${T-6}" r="5.5" fill="#e2e8f0" stroke="#12161f" stroke-width="1.5" style="cursor:ew-resize"/>`;
+    att.forEach(s=>{ g += `<circle cx="${px(cx)}" cy="${py(val(s,cx))}" r="${s.real?7:4.5}" fill="${s.col}" stroke="${s.real?'#f0b429':'#12161f'}" stroke-width="${s.real?3:1.5}"/>`; });
+    if(sel.reale){
+      const vr = val(real,cx), tx = px(cx) > W/2 ? px(cx)-14 : px(cx)+14, an = px(cx) > W/2 ? 'end' : 'start';
+      g += `<text x="${tx}" y="${py(vr)-12}" text-anchor="${an}" font-size="13" font-weight="700" fill="#ffffff" stroke="#12161f" stroke-width="4" paint-order="stroke">TS: ${euro(round2(vr))}</text>`;
+    }
+    cur.innerHTML = g;
+    const inp = document.getElementById('sim-fin'); if(inp && document.activeElement!==inp) inp.value = Math.round(cx);
+    const eReale = Math.abs(cx-FM) < 50;
+    rd.innerHTML = `<div style="font-size:13px;margin-bottom:6px">Fatturato PS (gettoniere) <strong>${euro(Math.round(cx))}</strong>${eReale?' <span style="color:#f0b429">= fatturato reale di '+MESI[p.m].toLowerCase()+'</span>':''} → guadagno TS:</div><div style="display:flex;flex-wrap:wrap;gap:6px 18px">` +
+      att.slice().reverse().map(s=>`<div style="white-space:nowrap"><span style="display:inline-block;width:12px;height:3px;background:${s.col};margin-right:6px;vertical-align:middle"></span>${s.real?'<strong>':''}${s.label}: <strong>${euro(round2(val(s,cx)))}</strong>${s.real?'</strong>':''}</div>`).join('') + '</div>';
+  }
+  const daEvento = ev=>{ const r = sv.getBoundingClientRect(), k = r.width/W; return SIM_X0 + ((ev.clientX - r.left)/k - L)/pw*(SIM_X1-SIM_X0); };
+  let drag = false;
+  hit.addEventListener('pointerdown', ev=>{ drag = true; try{ hit.setPointerCapture(ev.pointerId); }catch(e){} disegna(Math.round(daEvento(ev)/100)*100); });
+  hit.addEventListener('pointermove', ev=>{ if(drag) disegna(Math.round(daEvento(ev)/100)*100); });
+  const fine = ()=>{ drag = false; };
+  hit.addEventListener('pointerup', fine); hit.addEventListener('pointercancel', fine);
+  disegna(cx);
 }
 
 function showPage(name){
