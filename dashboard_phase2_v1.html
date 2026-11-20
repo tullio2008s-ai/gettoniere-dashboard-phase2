@@ -162,7 +162,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
 </head>
 <body>
 
-<div class="test-banner" id="prod-banner" style="display:none">🔶 GETTONIERE-SHOP V6 — collegato a Firebase (nodo datiV6, separato da v2) &nbsp; <span>Contratto Step 2 dal 01/09/2026</span> <span>rev.8 · 02/11/2026</span></div>
+<div class="test-banner" id="prod-banner" style="display:none">🔶 GETTONIERE-SHOP V6 — collegato a Firebase (nodo datiV6, separato da v2) &nbsp; <span>Contratto Step 2 dal 01/09/2026</span> <span>rev.9 · 20/11/2026</span></div>
 
 <!-- ══════════ LOGIN ══════════ -->
 <div id="login-screen">
@@ -284,7 +284,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
 <!-- ══════════ AMAZON / SHOPIFY / ESTERO (unificata) ══════════ -->
 <div class="page" id="page-amazon">
   <div class="section-title">🌍 Vendite Amazon / Shopify / Estero (Art. 13, 13-bis, 14)</div>
-  <div class="formula-box">Totale B2B PS→TS = <span class="hl">Guadagno netto canale × % del canale selezionato</span> (Amazon 58%, Shopify/Estero 60%) → scorporo IVA 22% (fattura tra due società italiane, sempre uguale). Canali esclusi da F e MOL ordinario.</div>
+  <div class="formula-box">Totale B2B PS→TS = <span class="hl">Guadagno netto canale × % del canale selezionato</span> (Amazon 58%, Shopify/Estero 60%) = imponibile della fattura PS→TS, IVA 22% aggiunta sopra (fattura tra due società italiane, sempre uguale). Canali esclusi da F e MOL ordinario.</div>
   <div class="formula-box" style="border-color:rgba(96,165,250,.3);background:rgba(96,165,250,.06)">Il reverse charge riguarda <span class="hl" style="color:var(--accent3)">le vendite di TS SRL ai clienti finali</span>, non la fattura PS→TS: <span class="hl" style="color:var(--accent3)">B2B</span> a cliente estero UE → IVA non applicata (già netto). <span class="hl" style="color:var(--accent3)">B2C</span> → di norma IVA inclusa, da scorporare.</div>
   <div class="warn-box" id="amazon-permesso-warn" style="display:none">🔒 Sola lettura — Amazon/Shopify/Estero sono canali propri di TS SRL: solo TS SRL può inserire, modificare o eliminare queste operazioni. PS SRLS le vede qui in consultazione ma non è coinvolta nella loro gestione.</div>
   <div class="card">
@@ -308,9 +308,9 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <div><label>Importo transazione (€)</label><input type="number" id="vc-guadagni" step="0.01" style="width:150px" oninput="anteprimaVendite()"></div>
       <button class="btn primary" id="vc-add-btn" onclick="aggiungiVendite()">+ Aggiungi</button>
     </div>
-    <div class="hint" id="vc-preview">Anteprima: Importo € — → Guadagni netti € — → Totale B2B (58%) € — → Imponibile € — · IVA € —</div>
+    <div class="hint" id="vc-preview">Anteprima: Importo € — → Guadagni netti € — → Imponibile PS (58%) € — → Imponibile € — · IVA € —</div>
   </div>
-  <button class="btn" onclick="testAmazonH()" style="margin-bottom:16px">🧪 Verifica Test H Amazon (661,64 → 383,75 → 314,55 → 69,20)</button>
+  <button class="btn" onclick="testAmazonH()" style="margin-bottom:16px">🧪 Verifica Test H Amazon (531,11 → 435,34 → 252,50 → 55,55)</button>
   <div class="field-row" style="margin-bottom:14px">
     <select id="vc-filtro-canale" onchange="renderAmazon()">
       <option value="tutti">Tutti i canali</option>
@@ -551,7 +551,7 @@ function mostraStatoFirebase(ok, msg){
   if(ok){
     banner.style.display = 'block';
     banner.style.background = 'repeating-linear-gradient(45deg,#4ade80,#4ade80 12px,#0d0f14 12px,#0d0f14 24px)';
-    banner.innerHTML = '🟢 GETTONIERE-SHOP V6 — collegato a Firebase (nodo datiV6) <span>Contratto Step 2 dal 01/09/2026</span> <span>rev.8 · 02/11/2026</span>';
+    banner.innerHTML = '🟢 GETTONIERE-SHOP V6 — collegato a Firebase (nodo datiV6) <span>Contratto Step 2 dal 01/09/2026</span> <span>rev.9 · 20/11/2026</span>';
   } else {
     banner.style.display = 'block';
     banner.style.background = 'repeating-linear-gradient(45deg,#f87171,#f87171 12px,#0d0f14 12px,#0d0f14 24px)';
@@ -959,7 +959,13 @@ function calcolaScorporo(totale){
   const iva = round2(totale - imponibile);
   return { totale: round2(totale), imponibile, iva };
 }
-function calcolaCanaleB2B(guadagni, pct){ return calcolaScorporo(guadagni * pct/100); }
+// rev.9 (20/11/2026): il prezzo di acquisto da PS è il X% del guadagno NETTO (IVA esclusa) del canale ed è
+// già l'IMPONIBILE della fattura PS→TS; l'IVA 22% si AGGIUNGE sopra (nessun ulteriore scorporo ÷1,22).
+function calcolaCanaleB2B(guadagni, pct){
+  const imponibile = round2(guadagni * pct/100);
+  const iva = round2(imponibile * 0.22);
+  return { totale: round2(imponibile + iva), imponibile, iva };
+}
 // Abbonamenti e servizi senza materiale incassati direttamente da TS SRL (es. abbonamenti):
 // non rientrano nel canale Amazon/Shopify/Estero (nessun costo materiale da riconoscere a PS SRLS
 // secondo la logica Art.13.4) né nel Fatturato Rilevante di PS SRLS. Su richiesta di Tullio del
@@ -1345,7 +1351,7 @@ function prSezioneCanali(y, m){
     return `<div class="pr-section">${def.label} (${pct}%) — ${lista.length} operazioni</div>
     ${lista.length ? `<table><tr><th>Data</th><th>Tipo</th><th>Descrizione</th><th>Importo</th><th>IVA</th><th>Netto</th></tr>
       ${lista.map(v=>`<tr><td>${v.data}</td><td>${(TIPO_DEFS[v.tipo]||{}).label||v.tipo||'—'}</td><td>${v.desc||''}</td><td>${euro(v.importoLordo!==undefined?v.importoLordo:v.guadagni)}</td><td>${prIvaLabel(v.ivaFlag)}</td><td>${euro(v.guadagni)}</td></tr>`).join('')}
-      <tr class="pr-tot"><td colspan="5">Totale netto → B2B ${euro(c.totale)} (imp. ${euro(c.imponibile)} + IVA ${euro(c.iva)})</td><td>${euro(totNetto)}</td></tr>
+      <tr class="pr-tot"><td colspan="5">Totale netto → imponibile PS ${euro(c.imponibile)} + IVA ${euro(c.iva)} = fattura ${euro(c.totale)}</td><td>${euro(totNetto)}</td></tr>
     </table>` : '<div class="hint">Nessuna operazione nel mese.</div>'}`;
   }).join('');
   return `<div class="pr-page">${prPageHead('Amazon / Shopify / Estero', y, m)}${blocchi}</div>`;
@@ -1491,10 +1497,10 @@ function renderDashboard(){
       </div>
       <div class="dash-body">
         <div class="dash-section-lbl">Canali propri del mese</div>
-        ${riga('Amazon → B2B ('+fmt((getParam('percAmazon', meseChiave(c.y,c.m)+'-15')??58))+'%)', c.amazon.totale, {mini:'guad. '+fmt(c.amazonGuadagni)})}
-        ${riga('Shopify → B2B ('+fmt((getParam('percShopify', meseChiave(c.y,c.m)+'-15')??60))+'%)', c.shopify.totale, {mini:'guad. '+fmt(c.shopifyGuadagni)})}
-        ${riga('Estero → B2B ('+fmt((getParam('percSpagna', meseChiave(c.y,c.m)+'-15')??60))+'%)', c.spagna.totale, {mini:'guad. '+fmt(c.spagnaGuadagni)})}
-        ${riga('Totale canali (IVA incl.)', round2(c.amazon.totale+c.shopify.totale+c.spagna.totale), {tot:true})}
+        ${riga('Amazon → B2B ('+fmt((getParam('percAmazon', meseChiave(c.y,c.m)+'-15')??58))+'%)', c.amazon.imponibile, {mini:'guad. '+fmt(c.amazonGuadagni)})}
+        ${riga('Shopify → B2B ('+fmt((getParam('percShopify', meseChiave(c.y,c.m)+'-15')??60))+'%)', c.shopify.imponibile, {mini:'guad. '+fmt(c.shopifyGuadagni)})}
+        ${riga('Estero → B2B ('+fmt((getParam('percSpagna', meseChiave(c.y,c.m)+'-15')??60))+'%)', c.spagna.imponibile, {mini:'guad. '+fmt(c.spagnaGuadagni)})}
+        ${riga('Totale canali (imponibile, IVA esclusa)', round2(c.amazon.imponibile+c.shopify.imponibile+c.spagna.imponibile), {tot:true})}
 
         <div class="dash-credit-box">
           <div class="dash-credit-title">Dovuto a PS SRLS — fattura PS → TS</div>
@@ -1811,10 +1817,10 @@ function anteprimaVendite(){
   const canale = document.getElementById('vc-canale').value;
   const dataVal = document.getElementById('vc-data').value || (meseChiave(window.viewYear,window.viewMonth)+'-15');
   const pct = pctCanaleVendite(canale, dataVal);
-  if(!importo){ el.innerHTML = `Anteprima: Importo € — → Guadagni netti € — → Totale B2B (${pct}%) € — → Imponibile € — · IVA € —`; return; }
+  if(!importo){ el.innerHTML = `Anteprima: Importo € — → Guadagni netti € — → Imponibile PS (${pct}%) € — → IVA 22% € — · Totale fattura € —`; return; }
   const netto = ivaFlag==='inclusa' ? round2(importo/1.22) : importo;
   const c = calcolaCanaleB2B(netto, pct);
-  el.innerHTML = `Anteprima: Importo ${euro(importo)}${ivaFlag==='inclusa'?' (IVA incl.)':' (reverse charge/netto)'} → Guadagni netti <strong>${euro(netto)}</strong> → Totale B2B (${pct}%) <strong style="color:var(--accent)">${euro(c.totale)}</strong> → Imponibile ${euro(c.imponibile)} · IVA ${euro(c.iva)}`;
+  el.innerHTML = `Anteprima: Importo ${euro(importo)}${ivaFlag==='inclusa'?' (IVA incl.)':' (reverse charge/netto)'} → Guadagni netti <strong>${euro(netto)}</strong> → Imponibile PS (${pct}%) <strong style="color:var(--accent)">${euro(c.imponibile)}</strong> → IVA 22% ${euro(c.iva)} · Totale fattura ${euro(c.totale)}`;
 }
 function aggiungiVendite(){
   if(!requireAdmin('gestire Amazon/Shopify/Estero (canali propri di TS SRL)')) return;
@@ -1889,27 +1895,29 @@ function renderAmazon(){
 
   document.getElementById('amazon-kpi').innerHTML = `
     <div class="kpi"><div class="kpi-label">Guadagni netti periodo</div><div class="kpi-value">${euro(totNetto)}</div><div class="kpi-sub">lordo ${euro(totLordo)}</div></div>
-    <div class="kpi gold"><div class="kpi-label">Totale B2B</div><div class="kpi-value">${euro(totB2B)}</div></div>
-    <div class="kpi"><div class="kpi-label">Imponibile</div><div class="kpi-value">${euro(totImp)}</div></div>
-    <div class="kpi"><div class="kpi-label">IVA scorporata (22%)</div><div class="kpi-value">${euro(totIva)}</div></div>
+    <div class="kpi gold"><div class="kpi-label">Imponibile acquisto da PS</div><div class="kpi-value">${euro(totImp)}</div></div>
+    <div class="kpi"><div class="kpi-label">IVA 22% (si aggiunge)</div><div class="kpi-value">${euro(totIva)}</div></div>
+    <div class="kpi"><div class="kpi-label">Totale fattura PS</div><div class="kpi-value">${euro(totB2B)}</div></div>
     <div class="kpi"><div class="kpi-label">N° operazioni</div><div class="kpi-value">${lista.length}</div></div>
     ${revCharge ? `<div class="kpi red"><div class="kpi-label">di cui reverse charge (B2B estero)</div><div class="kpi-value">${euro(revCharge)}</div><div class="kpi-sub">IVA non applicata sulla vendita</div></div>` : ''}`;
 
-  document.getElementById('amazon-lista').innerHTML = lista.length ? `<table><tr><th>Data</th><th>Canale</th><th>Tipo</th><th>Descrizione</th><th>Importo</th><th>IVA</th><th>Netto</th><th>Totale B2B</th><th></th></tr>
+  document.getElementById('amazon-lista').innerHTML = lista.length ? `<table><tr><th>Data</th><th>Canale</th><th>Tipo</th><th>Descrizione</th><th>Importo</th><th>IVA</th><th>Netto</th><th>Imponibile PS</th><th></th></tr>
     ${lista.map(v=>{
       const def = CANALE_PRINCIPALE_DEFS[v._canale];
       const pct = getParam(def.param, v.data) ?? def.pctDefault;
       const c = calcolaCanaleB2B(v.guadagni, pct);
-      return `<tr><td>${v.data}</td><td class="txt">${def.label}</td><td class="txt">${(TIPO_DEFS[v.tipo]||{}).label||v.tipo||'—'}</td><td class="txt">${v.desc||''}</td><td>${euro(v.importoLordo!==undefined?v.importoLordo:v.guadagni)}</td><td class="txt">${v.ivaFlag==='esclusa'?'reverse charge':(v.ivaFlag==='inclusa'?'22% incl.':'—')}</td><td>${euro(v.guadagni)}</td><td>${euro(c.totale)}</td><td>${isAdmin() ? btnElimina(v.data, `eliminaCanale('${def.nodo}',${v.id})`) : ''}</td></tr>`;
+      return `<tr><td>${v.data}</td><td class="txt">${def.label}</td><td class="txt">${(TIPO_DEFS[v.tipo]||{}).label||v.tipo||'—'}</td><td class="txt">${v.desc||''}</td><td>${euro(v.importoLordo!==undefined?v.importoLordo:v.guadagni)}</td><td class="txt">${v.ivaFlag==='esclusa'?'reverse charge':(v.ivaFlag==='inclusa'?'22% incl.':'—')}</td><td>${euro(v.guadagni)}</td><td>${euro(c.imponibile)}</td><td>${isAdmin() ? btnElimina(v.data, `eliminaCanale('${def.nodo}',${v.id})`) : ''}</td></tr>`;
     }).join('')}
-    <tr style="font-weight:700"><td colspan="4" class="txt">Totale periodo</td><td>${euro(totLordo)}</td><td></td><td>${euro(totNetto)}</td><td>${euro(totB2B)}</td><td></td></tr>
+    <tr style="font-weight:700"><td colspan="4" class="txt">Totale periodo</td><td>${euro(totLordo)}</td><td></td><td>${euro(totNetto)}</td><td>${euro(totImp)}</td><td></td></tr>
     </table>`
     : '<div class="empty-state">Nessun dato nel periodo selezionato.</div>';
 }
 function testAmazonH(){
-  const c = calcolaCanaleB2B(661.64, 58);
-  const ok = Math.abs(c.totale-383.75)<0.02 && Math.abs(c.imponibile-314.55)<0.02 && Math.abs(c.iva-69.20)<0.02;
-  alert((ok?'✅ TEST H SUPERATO\n':'❌ TEST H FALLITO\n') + `Base 661,64 → Totale ${fmt(c.totale)} → Imponibile ${fmt(c.imponibile)} → IVA ${fmt(c.iva)}\nAtteso: 383,75 / 314,55 / 69,20`);
+  // Ordine Amazon 18/11/2026: Guadagni 531,11 IVA incl. → netto 435,34 → 58% = imponibile 252,50, IVA 55,55, fattura 308,05
+  const netto = round2(531.11/1.22);
+  const c = calcolaCanaleB2B(netto, 58);
+  const ok = Math.abs(netto-435.34)<0.02 && Math.abs(c.imponibile-252.50)<0.02 && Math.abs(c.iva-55.55)<0.02 && Math.abs(c.totale-308.05)<0.02;
+  alert((ok?'✅ TEST H SUPERATO\n':'❌ TEST H FALLITO\n') + `Guadagni 531,11 → netto ${fmt(netto)} → Imponibile PS ${fmt(c.imponibile)} → IVA ${fmt(c.iva)} → Fattura ${fmt(c.totale)}\nAtteso: 435,34 / 252,50 / 55,55 / 308,05`);
 }
 
 // ── ABBONAMENTI E SERVIZI SENZA MATERIALE (MOL puro) ──
